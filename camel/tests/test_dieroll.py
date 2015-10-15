@@ -1,4 +1,4 @@
-from camel import Camel, CamelRegistry, python_registry
+from camel import Camel, CamelRegistry, PYTHON_TYPES
 
 import collections
 
@@ -16,9 +16,11 @@ class DieRoll(tuple):
 
 reg = CamelRegistry()
 
+
 @reg.dumper(DieRoll, '!roll')
 def dump_dice(dumper, data):
     return "{}d{}".format(*data)
+
 
 @reg.loader(DieRoll, '!roll')
 def load_dice(dumper, data):
@@ -32,20 +34,19 @@ def load_dice(dumper, data):
 
 def test_odict():
     value = collections.OrderedDict([('a', 1), ('b', 2), ('c', 3)])
-    camel = Camel([python_registry])
+    camel = Camel()
     dumped = camel.dump(value)
     assert dumped == '!!omap\n- a: 1\n- b: 2\n- c: 3\n'
     assert camel.load(dumped) == value
 
 
 def test_tuple():
-    # TODO possibly should tag this as !!python/tuple in some cases
     # TODO short list like this should be flow style
     value = (1, 2, 3)
-    camel = Camel([python_registry])
+    camel = Camel()
     dumped = camel.dump(value)
     assert dumped == '- 1\n- 2\n- 3\n'
-    assert camel.load(dumped) == value
+    assert camel.load(dumped) == list(value)
 
 
 def test_dieroll():
@@ -56,4 +57,32 @@ def test_dieroll():
     dumped = camel.dump(value)
     # TODO i don't know why this ... is here
     assert dumped == '!roll 3d6\n...\n'
+    assert camel.load(dumped) == value
+
+
+# Python types
+
+def test_python_tuple():
+    # TODO short list like this should be flow style
+    value = (1, 2, 3)
+    camel = Camel([PYTHON_TYPES])
+    dumped = camel.dump(value)
+    assert dumped == '!!python/tuple\n- 1\n- 2\n- 3\n'
+    assert camel.load(dumped) == value
+
+
+def test_python_complex():
+    value = 3 + 4j
+    camel = Camel([PYTHON_TYPES])
+    dumped = camel.dump(value)
+    # TODO superfluous ... again
+    assert dumped == '!!python/complex 3+4j\n...\n'
+    assert camel.load(dumped) == value
+
+
+def test_python_frozenset():
+    value = frozenset(('x', 'y', 'z'))
+    camel = Camel([PYTHON_TYPES])
+    dumped = camel.dump(value)
+    assert dumped == '!!python/frozenset\n- x\n- y\n- z\n'
     assert camel.load(dumped) == value

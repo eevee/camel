@@ -1,4 +1,5 @@
 # TODO, this specifically:
+# - allow prefixing (in the Camel obj?) otherwise assume local, don't require the leading !
 # - figure out namespacing and urls and whatever the christ
 # - how do we actually store versions??  extra slash part??  maybe that works  (but then, forbid a type name that ends in such a slash part)
 # - blacklist all the types in the yaml repo
@@ -10,6 +11,7 @@
 import collections
 import functools
 from io import StringIO
+import types
 
 import yaml
 
@@ -68,8 +70,8 @@ class CamelLoader(SafeLoader):
 
 
 class Camel(object):
-    def __init__(self, registries):
-        self.registries = registries
+    def __init__(self, registries=()):
+        self.registries = (STANDARD_TYPES,) + tuple(registries)
 
     def make_dumper(self, stream):
         dumper = CamelDumper(stream, default_flow_style=False)
@@ -100,19 +102,28 @@ class Camel(object):
 
 
 class CamelRegistry(object):
+    frozen = False
+
     def __init__(self):
         self.dumpers = {}
         self.loaders = {}
 
-    # TODO: how do we handle subclasses?  how does yaml?  what if there are conflicts?
+    # TODO: how do we handle subclasses?  how does yaml?  what if there are
+    # conflicts?
+
+    def freeze(self):
+        self.frozen = True
 
     # Dumping
 
     def dumper(self, cls, tag, version=None):
-        assert '/' not in tag
+        if self.frozen:
+            raise RuntimeError("Can't add to a frozen registry")
+
+        assert '@' not in tag
         if version is not None:
             assert isinstance(version, (int, float))
-            tag = "{}/{}".format(tag, version)
+            tag = "{}@{}".format(tag, version)
 
         def decorator(f):
             self.dumpers[tag] = cls, functools.partial(self.run_representer, f, tag)
@@ -148,12 +159,15 @@ class CamelRegistry(object):
     # Loading
 
     def loader(self, cls, tag, version=None):
+        if self.frozen:
+            raise RuntimeError("Can't add to a frozen registry")
+
         # TODO is there any good point to passing in cls
         # TODO this is copy/pasted, and hokey besides
-        assert '/' not in tag
+        assert '@' not in tag
         if version is not None:
             assert isinstance(version, (int, float))
-            tag = "{}/{}".format(tag, version)
+            tag = "{}@{}".format(tag, version)
 
         def decorator(f):
             self.loaders[tag] = cls, functools.partial(self.run_constructor, f)
@@ -177,15 +191,19 @@ class CamelRegistry(object):
             loader.add_constructor(tag, constructor)
 
 
-python_registry = CamelRegistry()
-# TODO tag tuples?  sets?  frozensets?  complex?  any other python types?
-# TODO py3's types.SimpleNamespace
-# TODO some kinda option, or a separate registry, for tagging python versus collapsing to yaml types?
-# TODO "raw" loaders and dumpers that get access to loader/dumper and deal with raw nodes?
+# TODO "raw" loaders and dumpers that get access to loader/dumper and deal with
+# raw nodes?
 # TODO multi_constructor, multi_representer, implicit_resolver
 
 
-@python_registry.dumper(collections.OrderedDict, YAML_TAG_PREFIX + 'omap')
+# YAML's "language-independent types" — not builtins, but supported with
+# standard !! tags.  Most of them are built into pyyaml, but OrderedDict is
+# curiously overlooked.  Loaded first by default into every Camel object.
+# Ref: http://yaml.org/type/
+# TODO by default, dump frozenset as though it were a set?  how
+STANDARD_TYPES = CamelRegistry()
+
+@STANDARD_TYPES.dumper(collections.OrderedDict, YAML_TAG_PREFIX + 'omap')
 def _dump_ordered_dict(dumper, data):
     pairs = []
     for key, value in data.items():
@@ -193,12 +211,70 @@ def _dump_ordered_dict(dumper, data):
     return pairs
 
 
-@python_registry.loader(collections.OrderedDict, YAML_TAG_PREFIX + 'omap')
+@STANDARD_TYPES.loader(collections.OrderedDict, YAML_TAG_PREFIX + 'omap')
 def _load_ordered_dict(loader, data):
     # TODO assert only single kv per thing
     return collections.OrderedDict(
         next(iter(datum.items())) for datum in data
     )
+
+STANDARD_TYPES.freeze()
+
+
+# TODO seems like we should always support /loading/ these python types...?
+PYTHON_TYPES = CamelRegistry()
+
+
+@PYTHON_TYPES.dumper(tuple, YAML_TAG_PREFIX + 'python/tuple')
+def _dump_tuple(dumper, data):
+    return list(data)
+
+
+@PYTHON_TYPES.loader(tuple, YAML_TAG_PREFIX + 'python/tuple')
+def _load_tuple(loader, data):
+    return tuple(data)
+
+
+@PYTHON_TYPES.dumper(complex, YAML_TAG_PREFIX + 'python/complex')
+def _dump_complex(dumper, data):
+    ret = repr(data)
+    # Complex numbers become (1+2j), but the parens are superfluous
+    if ret[0] == '(' and ret[-1] == ')':
+        return ret[1:-1]
+    else:
+        return ret
+
+
+@PYTHON_TYPES.loader(complex, YAML_TAG_PREFIX + 'python/complex')
+def _load_complex(loader, data):
+    return complex(data)
+
+
+@PYTHON_TYPES.dumper(frozenset, YAML_TAG_PREFIX + 'python/frozenset')
+def _dump_complex(dumper, data):
+    try:
+        return list(sorted(data))
+    except TypeError:
+        return list(data)
+
+
+@PYTHON_TYPES.loader(frozenset, YAML_TAG_PREFIX + 'python/frozenset')
+def _load_complex(loader, data):
+    return frozenset(data)
+
+
+if hasattr(types, 'SimpleNamespace'):
+    @PYTHON_TYPES.dumper(types.SimpleNamespace, YAML_TAG_PREFIX + 'python/namespace')
+    def _dump_simple_namespace(dumper, data):
+        return data.__dict__
+
+
+    @PYTHON_TYPES.loader(types.SimpleNamespace, YAML_TAG_PREFIX + 'python/namespace')
+    def _load_simple_namespace(loader, data):
+        return types.SimpleNamespace(**data)
+
+
+PYTHON_TYPES.freeze()
 
 
 # TODO versioned thing
