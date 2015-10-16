@@ -15,7 +15,6 @@
 # - /must/ figure out what happens with subclasses, and block if necessary for now, or make opt-in (but then, what happens with the tag, to indicate the subclass?)
 # - /must/ work on python 2
 # - /must/ use python 3 semantics for strings
-# - use # to delimit version, per spec suggestion
 # - better versioning story, interop with no version somehow, what is the use case for versionless?  assuming it will never change?  imo should require version
 # - should write some docs, both on camel and on yaml
 
@@ -142,10 +141,10 @@ class CamelRegistry(object):
         if self.frozen:
             raise RuntimeError("Can't add to a frozen registry")
 
-        assert '@' not in tag
+        assert '#' not in tag
         if version is not None:
             assert isinstance(version, (int, float))
-            tag = "{}@{}".format(tag, version)
+            tag = "{}#{}".format(tag, version)
 
         def decorator(f):
             self.dumpers[tag] = cls, functools.partial(self.run_representer, f, tag)
@@ -187,10 +186,10 @@ class CamelRegistry(object):
 
         # TODO is there any good point to passing in cls
         # TODO this is copy/pasted, and hokey besides
-        assert '@' not in tag
+        assert '#' not in tag
         if version is not None:
             assert isinstance(version, (int, float))
-            tag = "{}@{}".format(tag, version)
+            tag = "{}#{}".format(tag, version)
 
         def decorator(f):
             self.loaders[tag] = cls, functools.partial(self.run_constructor, f)
