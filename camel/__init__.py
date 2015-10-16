@@ -8,6 +8,33 @@
 # - by default on python 2, assume everything is unicode unless it contains control characters?
 # - DWIM -- block style except for very short sequences (if at all?), quotey style for long text...
 
+# TODO BEFORE PUBLISHING:
+# - /must/ strip the leading ! from tag names and allow giving a prefix (difficulty: have to do %TAG directive manually)
+# - /must/ remove loader and dumper arguments, no need for them!
+# - /must/ remove type arg from loader  (would be nice to have as documentation, but is useless?  blurgh)
+# - /must/ figure out what happens with subclasses, and block if necessary for now, or make opt-in (but then, what happens with the tag, to indicate the subclass?)
+# - /must/ work on python 2
+# - /must/ use python 3 semantics for strings
+# - use # to delimit version, per spec suggestion
+# - better versioning story, interop with no version somehow, what is the use case for versionless?  assuming it will never change?  imo should require version
+# - should write some docs, both on camel and on yaml
+
+# TODO test a versioned thing
+# TODO how does versioning interact with unversioned...?  maybe /require/ version, don't default to None
+
+
+# TODO from alex gaynor's talk, starting around 24m in:
+# - class is deleted (if it's useless, just return a dummy value)
+# - attribute changes
+
+# TODO minor questions and gripes:
+# - should this complain if there are overlapping definitions?
+# - Camel.load() should balk if there's != 1 object
+# - need a Camel.load_all() (which can iterate)
+# - how do we handle subclasses?  how does yaml?  what if there are conflicts?
+# - dumper and loader could be easily made to work on methods...  i think...  in py3
+
+
 import collections
 import functools
 from io import StringIO
@@ -76,7 +103,6 @@ class Camel(object):
     def make_dumper(self, stream):
         dumper = CamelDumper(stream, default_flow_style=False)
         for registry in self.registries:
-            # TODO should this complain if there are overlapping definitions?
             registry.inject_dumpers(dumper)
         return dumper
 
@@ -97,7 +123,6 @@ class Camel(object):
     def load(self, data):
         stream = StringIO(data)
         loader = self.make_loader(stream)
-        # TODO what if there are multiple objects...?
         return loader.get_data()
 
 
@@ -107,9 +132,6 @@ class CamelRegistry(object):
     def __init__(self):
         self.dumpers = {}
         self.loaders = {}
-
-    # TODO: how do we handle subclasses?  how does yaml?  what if there are
-    # conflicts?
 
     def freeze(self):
         self.frozen = True
@@ -157,6 +179,7 @@ class CamelRegistry(object):
             dumper.add_representer(cls, representer)
 
     # Loading
+    # TODO implement "upgrader", which upgrades from one version to another
 
     def loader(self, cls, tag, version=None):
         if self.frozen:
@@ -275,7 +298,3 @@ if hasattr(types, 'SimpleNamespace'):
 
 
 PYTHON_TYPES.freeze()
-
-
-# TODO versioned thing
-# TODO how does it interact with unversioned...?  maybe require version
