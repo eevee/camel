@@ -1,3 +1,4 @@
+# encoding: utf8
 # TODO, this specifically:
 # - allow prefixing (in the Camel obj?) otherwise assume local, don't require the leading !
 # - figure out namespacing and urls and whatever the christ
@@ -34,6 +35,10 @@
 # - dumper and loader could be easily made to work on methods...  i think...  in py3
 
 
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
 import collections
 import functools
 from io import StringIO
