@@ -25,8 +25,6 @@
 
 # TODO minor questions and gripes:
 # - should this complain if there are overlapping definitions?
-# - Camel.load() should balk if there's != 1 object
-# - need a Camel.load_all() (which can iterate)
 # - how do we handle subclasses?  how does yaml?  what if there are conflicts?
 # - dumper and loader could be easily made to work on methods...  i think...  in py3
 
@@ -126,7 +124,21 @@ class Camel(object):
     def load(self, data):
         stream = StringIO(data)
         loader = self.make_loader(stream)
+        obj = loader.get_data()
+        if loader.check_node():
+            raise RuntimeError("Multiple documents found in stream; use load_all")
+        return obj
+
+    def load_first(self, data):
+        stream = StringIO(data)
+        loader = self.make_loader(stream)
         return loader.get_data()
+
+    def load_all(self, data):
+        stream = StringIO(data)
+        loader = self.make_loader(stream)
+        while loader.check_node():
+            yield loader.get_data()
 
 
 class CamelRegistry(object):
