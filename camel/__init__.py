@@ -2,11 +2,8 @@
 # TODO, this specifically:
 # - allow prefixing (in the Camel obj?) otherwise assume local, don't require the leading !
 # - figure out namespacing and urls and whatever the christ
-# - how do we actually store versions??  extra slash part??  maybe that works  (but then, forbid a type name that ends in such a slash part)
-# - blacklist all the types in the yaml repo
 # - document exactly which ones we support (i.e., yaml supports)
 # TODO, general:
-# - by default on python 2, assume everything is unicode unless it contains control characters?
 # - DWIM -- block style except for very short sequences (if at all?), quotey style for long text...
 
 # TODO BEFORE PUBLISHING:
