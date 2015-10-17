@@ -87,12 +87,12 @@ reg = CamelRegistry()
 
 
 @reg.dumper(DieRoll, '!roll')
-def dump_dice(dumper, data):
+def dump_dice(data):
     return "{}d{}".format(*data)
 
 
 @reg.loader(DieRoll, '!roll')
-def load_dice(dumper, data):
+def load_dice(data):
     # TODO enforce incoming data is a string?
     a, _, b = data.partition('d')
     return DieRoll(int(a), int(b))

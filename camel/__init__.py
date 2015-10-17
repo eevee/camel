@@ -11,7 +11,6 @@
 
 # TODO BEFORE PUBLISHING:
 # - /must/ strip the leading ! from tag names and allow giving a prefix (difficulty: have to do %TAG directive manually)
-# - /must/ remove loader and dumper arguments, no need for them!
 # - /must/ remove type arg from loader  (would be nice to have as documentation, but is useless?  blurgh)
 # - /must/ figure out what happens with subclasses, and block if necessary for now, or make opt-in (but then, what happens with the tag, to indicate the subclass?)
 # - /must/ work on python 2
@@ -122,10 +121,10 @@ class Camel(object):
         return stream.getvalue()
 
     def make_loader(self, stream):
-        dumper = CamelLoader(stream)
+        loader = CamelLoader(stream)
         for registry in self.registries:
-            registry.inject_loaders(dumper)
-        return dumper
+            registry.inject_loaders(loader)
+        return loader
 
     def load(self, data):
         stream = StringIO(data)
@@ -161,7 +160,7 @@ class CamelRegistry(object):
         return decorator
 
     def run_representer(self, representer, tag, dumper, data):
-        canon_value = representer(dumper, data)
+        canon_value = representer(data)
         # Note that we /do not/ support subclasses of the built-in types here,
         # to avoid complications from returning types that have their own
         # custom representers
@@ -214,7 +213,7 @@ class CamelRegistry(object):
             data = loader.construct_mapping(node, deep=True)
         else:
             raise TypeError("Not a primitive node: {!r}".format(node))
-        return constructor(loader, data)
+        return constructor(data)
 
     def inject_loaders(self, loader):
         for tag, (cls, constructor) in self.loaders.items():
@@ -235,12 +234,12 @@ STANDARD_TYPES = CamelRegistry()
 
 
 @STANDARD_TYPES.dumper(frozenset, YAML_TAG_PREFIX + 'set')
-def _dump_frozenset(dumper, data):
+def _dump_frozenset(data):
     return dict.fromkeys(data)
 
 
 @STANDARD_TYPES.dumper(collections.OrderedDict, YAML_TAG_PREFIX + 'omap')
-def _dump_ordered_dict(dumper, data):
+def _dump_ordered_dict(data):
     pairs = []
     for key, value in data.items():
         pairs.append({key: value})
@@ -248,7 +247,7 @@ def _dump_ordered_dict(dumper, data):
 
 
 @STANDARD_TYPES.loader(collections.OrderedDict, YAML_TAG_PREFIX + 'omap')
-def _load_ordered_dict(loader, data):
+def _load_ordered_dict(data):
     # TODO assert only single kv per thing
     return collections.OrderedDict(
         next(iter(datum.items())) for datum in data
@@ -265,17 +264,17 @@ PYTHON_TYPES = CamelRegistry()
 
 
 @PYTHON_TYPES.dumper(tuple, YAML_TAG_PREFIX + 'python/tuple')
-def _dump_tuple(dumper, data):
+def _dump_tuple(data):
     return list(data)
 
 
 @STANDARD_TYPES.loader(tuple, YAML_TAG_PREFIX + 'python/tuple')
-def _load_tuple(loader, data):
+def _load_tuple(data):
     return tuple(data)
 
 
 @PYTHON_TYPES.dumper(complex, YAML_TAG_PREFIX + 'python/complex')
-def _dump_complex(dumper, data):
+def _dump_complex(data):
     ret = repr(data)
     # Complex numbers become (1+2j), but the parens are superfluous
     if ret[0] == '(' and ret[-1] == ')':
@@ -285,12 +284,12 @@ def _dump_complex(dumper, data):
 
 
 @STANDARD_TYPES.loader(complex, YAML_TAG_PREFIX + 'python/complex')
-def _load_complex(loader, data):
+def _load_complex(data):
     return complex(data)
 
 
 @PYTHON_TYPES.dumper(frozenset, YAML_TAG_PREFIX + 'python/frozenset')
-def _dump_complex(dumper, data):
+def _dump_complex(data):
     try:
         return list(sorted(data))
     except TypeError:
@@ -298,18 +297,18 @@ def _dump_complex(dumper, data):
 
 
 @STANDARD_TYPES.loader(frozenset, YAML_TAG_PREFIX + 'python/frozenset')
-def _load_complex(loader, data):
+def _load_complex(data):
     return frozenset(data)
 
 
 if hasattr(types, 'SimpleNamespace'):
     @PYTHON_TYPES.dumper(types.SimpleNamespace, YAML_TAG_PREFIX + 'python/namespace')
-    def _dump_simple_namespace(dumper, data):
+    def _dump_simple_namespace(data):
         return data.__dict__
 
 
     @STANDARD_TYPES.loader(types.SimpleNamespace, YAML_TAG_PREFIX + 'python/namespace')
-    def _load_simple_namespace(loader, data):
+    def _load_simple_namespace(data):
         return types.SimpleNamespace(**data)
 
 
