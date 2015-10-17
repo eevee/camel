@@ -28,6 +28,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
+import base64
 import collections
 import functools
 from io import StringIO
@@ -45,6 +46,10 @@ except ImportError:
 
 YAML_TAG_PREFIX = 'tag:yaml.org,2002:'
 
+_str = type('')
+_bytes = type(b'')
+_long = type(18446744073709551617)  # 2**64 + 1
+
 
 class CamelDumper(SafeDumper):
     """Subclass of yaml's `SafeDumper` that scopes representers to the
@@ -57,6 +62,18 @@ class CamelDumper(SafeDumper):
         super(CamelDumper, self).__init__(*args, **kwargs)
         self.yaml_representers = SafeDumper.yaml_representers.copy()
         self.yaml_multi_representers = SafeDumper.yaml_multi_representers.copy()
+
+        # Always dump bytes as binary, even on Python 2
+        self.add_representer(bytes, CamelDumper.represent_binary)
+
+    def represent_binary(self, data):
+        # This is copy-pasted, because it only exists in pyyaml in python 3 (?!)
+        if hasattr(base64, 'encodebytes'):
+            data = base64.encodebytes(data).decode('ascii')
+        else:
+            data = base64.encodestring(data).decode('ascii')
+        return self.represent_scalar(
+            YAML_TAG_PREFIX + 'binary', data, style='|')
 
     def add_representer(self, data_type, representer):
         self.yaml_representers[data_type] = representer
@@ -175,8 +192,7 @@ class CamelRegistry(object):
             return dumper.represent_mapping(tag, canon_value, flow_style=False)
         elif canon_type in (tuple, list):
             return dumper.represent_sequence(tag, canon_value, flow_style=False)
-        # TODO py2 compat?  long, something about str/unicode?
-        elif canon_type in (int, float, bool, str, type(None)):
+        elif canon_type in (int, _long, float, bool, _str, type(None)):
             return dumper.represent_scalar(tag, canon_value)
         else:
             raise TypeError(
@@ -280,6 +296,8 @@ def _load_tuple(data):
 @PYTHON_TYPES.dumper(complex, YAML_TAG_PREFIX + 'python/complex')
 def _dump_complex(data):
     ret = repr(data)
+    if str is bytes:
+        ret = ret.decode('ascii')
     # Complex numbers become (1+2j), but the parens are superfluous
     if ret[0] == '(' and ret[-1] == ')':
         return ret[1:-1]

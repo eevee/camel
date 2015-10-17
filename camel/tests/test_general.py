@@ -19,9 +19,11 @@ from camel import Camel, CamelRegistry, PYTHON_TYPES
     (b'bytes', "!!binary |\n  Ynl0ZXM=\n"),
     (True, "true\n...\n"),
     (133, "133\n...\n"),
+    # long, for python 2
+    (2**133, "10889035741470030830827987437816582766592\n...\n"),
     (3.52, "3.52\n...\n"),
     ([1, 2, 'three'], "- 1\n- 2\n- three\n"),
-    (dict(x=7, y=8, z=9), "x: 7\ny: 8\nz: 9\n"),
+    ({'x': 7, 'y': 8, 'z': 9}, "x: 7\ny: 8\nz: 9\n"),
     # TODO this should use ? notation
     (set("qvx"), "!!set\nq: null\nv: null\nx: null\n"),
     (datetime.date(2015, 10, 21), "2015-10-21\n...\n"),
