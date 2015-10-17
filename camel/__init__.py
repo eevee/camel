@@ -311,7 +311,7 @@ def _load_complex(data):
 
 
 @PYTHON_TYPES.dumper(frozenset, YAML_TAG_PREFIX + 'python/frozenset')
-def _dump_complex(data):
+def _dump_frozenset(data):
     try:
         return list(sorted(data))
     except TypeError:
@@ -319,7 +319,7 @@ def _dump_complex(data):
 
 
 @STANDARD_TYPES.loader(frozenset, YAML_TAG_PREFIX + 'python/frozenset')
-def _load_complex(data):
+def _load_frozenset(data):
     return frozenset(data)
 
 

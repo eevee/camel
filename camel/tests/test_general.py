@@ -63,6 +63,7 @@ def test_frozenset_roundtrip():
     ((4, 3, 2), "!!python/tuple\n- 4\n- 3\n- 2\n"),
     (5 + 12j, "!!python/complex 5+12j\n...\n"),
     (2j, "!!python/complex 2j\n...\n"),
+    (frozenset((4, 3, 2)), "!!python/frozenset\n- 2\n- 3\n- 4\n"),
 ])
 def test_python_roundtrip(value, expected_serialization):
     camel = Camel([PYTHON_TYPES])
