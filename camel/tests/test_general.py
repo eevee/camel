@@ -1,10 +1,79 @@
+# encoding: utf8
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+import collections
+import datetime
+
+import pytest
+
 from camel import Camel, CamelRegistry, PYTHON_TYPES
 
-import collections
+
+# Round-trips for simple values of built-in types
+@pytest.mark.parametrize(('value', 'expected_serialization'), [
+    # TODO the trailing ... for non-container values is kinda weird
+    (None, "null\n...\n"),
+    ('ⓤⓝⓘⓒⓞⓓⓔ', "ⓤⓝⓘⓒⓞⓓⓔ\n...\n"),
+    (b'bytes', "!!binary |\n  Ynl0ZXM=\n"),
+    (True, "true\n...\n"),
+    (133, "133\n...\n"),
+    (3.52, "3.52\n...\n"),
+    ([1, 2, 'three'], "- 1\n- 2\n- three\n"),
+    (dict(x=7, y=8, z=9), "x: 7\ny: 8\nz: 9\n"),
+    # TODO this should use ? notation
+    (set("qvx"), "!!set\nq: null\nv: null\nx: null\n"),
+    (datetime.date(2015, 10, 21), "2015-10-21\n...\n"),
+    (datetime.datetime(2015, 10, 21, 4, 29), "2015-10-21 04:29:00\n...\n"),
+    # TODO case with timezone...  unfortunately can't preserve the whole thing
+    (collections.OrderedDict([('a', 1), ('b', 2), ('c', 3)]), "!!omap\n- a: 1\n- b: 2\n- c: 3\n"),
+])
+def test_basic_roundtrip(value, expected_serialization):
+    camel = Camel()
+    dumped = camel.dump(value)
+    assert dumped == expected_serialization
+    assert camel.load(dumped) == value
+
+
+def test_tuple_roundtrip():
+    # By default, tuples become lists
+    value = (4, 3, 2)
+    camel = Camel()
+    dumped = camel.dump(value)
+    # TODO short list like this should be flow style?
+    assert dumped == "- 4\n- 3\n- 2\n"
+    assert camel.load(dumped) == list(value)
+
+
+def test_frozenset_roundtrip():
+    # By default, frozensets become sets
+    value = frozenset((4, 3, 2))
+    camel = Camel()
+    dumped = camel.dump(value)
+    # TODO this should use ? notation
+    assert dumped == "!!set\n2: null\n3: null\n4: null\n"
+    assert camel.load(dumped) == set(value)
+
+
+# Round-trips for built-in Python types with custom representations
+@pytest.mark.parametrize(('value', 'expected_serialization'), [
+    ((4, 3, 2), "!!python/tuple\n- 4\n- 3\n- 2\n"),
+    (5 + 12j, "!!python/complex 5+12j\n...\n"),
+    (2j, "!!python/complex 2j\n...\n"),
+])
+def test_python_roundtrip(value, expected_serialization):
+    camel = Camel([PYTHON_TYPES])
+    dumped = camel.dump(value)
+    assert dumped == expected_serialization
+
+    # Should be able to load them without the python types
+    vanilla_camel = Camel()
+    assert vanilla_camel.load(dumped) == value
 
 
 # -----------------------------------------------------------------------------
-# Setup stuff
+# Simple custom type
 
 class DieRoll(tuple):
     def __new__(cls, a, b):
@@ -29,60 +98,9 @@ def load_dice(dumper, data):
     return DieRoll(int(a), int(b))
 
 
-# -----------------------------------------------------------------------------
-# Tests proper
-
-def test_odict():
-    value = collections.OrderedDict([('a', 1), ('b', 2), ('c', 3)])
-    camel = Camel()
-    dumped = camel.dump(value)
-    assert dumped == '!!omap\n- a: 1\n- b: 2\n- c: 3\n'
-    assert camel.load(dumped) == value
-
-
-def test_tuple():
-    # TODO short list like this should be flow style
-    value = (1, 2, 3)
-    camel = Camel()
-    dumped = camel.dump(value)
-    assert dumped == '- 1\n- 2\n- 3\n'
-    assert camel.load(dumped) == list(value)
-
-
 def test_dieroll():
-    # TODO possibly should tag this as !!python/tuple in some cases
-    # TODO short list like this should be flow style
     value = DieRoll(3, 6)
     camel = Camel([reg])
     dumped = camel.dump(value)
-    # TODO i don't know why this ... is here
     assert dumped == '!roll 3d6\n...\n'
-    assert camel.load(dumped) == value
-
-
-# Python types
-
-def test_python_tuple():
-    # TODO short list like this should be flow style
-    value = (1, 2, 3)
-    camel = Camel([PYTHON_TYPES])
-    dumped = camel.dump(value)
-    assert dumped == '!!python/tuple\n- 1\n- 2\n- 3\n'
-    assert camel.load(dumped) == value
-
-
-def test_python_complex():
-    value = 3 + 4j
-    camel = Camel([PYTHON_TYPES])
-    dumped = camel.dump(value)
-    # TODO superfluous ... again
-    assert dumped == '!!python/complex 3+4j\n...\n'
-    assert camel.load(dumped) == value
-
-
-def test_python_frozenset():
-    value = frozenset(('x', 'y', 'z'))
-    camel = Camel([PYTHON_TYPES])
-    dumped = camel.dump(value)
-    assert dumped == '!!python/frozenset\n- x\n- y\n- z\n'
     assert camel.load(dumped) == value

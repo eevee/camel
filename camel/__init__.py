@@ -62,6 +62,9 @@ class CamelDumper(SafeDumper):
     instance, rather than to the particular class, because damn.
     """
     def __init__(self, *args, **kwargs):
+        # TODO this isn't quite good enough; pyyaml still escapes anything
+        # outside the BMP
+        kwargs.setdefault('allow_unicode', True)
         super(CamelDumper, self).__init__(*args, **kwargs)
         self.yaml_representers = SafeDumper.yaml_representers.copy()
         self.yaml_multi_representers = SafeDumper.yaml_multi_representers.copy()
@@ -227,8 +230,14 @@ class CamelRegistry(object):
 # standard !! tags.  Most of them are built into pyyaml, but OrderedDict is
 # curiously overlooked.  Loaded first by default into every Camel object.
 # Ref: http://yaml.org/type/
-# TODO by default, dump frozenset as though it were a set?  how
+# TODO pyyaml supports tags like !!python/list; do we care?
 STANDARD_TYPES = CamelRegistry()
+
+
+@STANDARD_TYPES.dumper(frozenset, YAML_TAG_PREFIX + 'set')
+def _dump_frozenset(dumper, data):
+    return dict.fromkeys(data)
+
 
 @STANDARD_TYPES.dumper(collections.OrderedDict, YAML_TAG_PREFIX + 'omap')
 def _dump_ordered_dict(dumper, data):
@@ -245,10 +254,13 @@ def _load_ordered_dict(loader, data):
         next(iter(datum.items())) for datum in data
     )
 
-STANDARD_TYPES.freeze()
 
-
-# TODO seems like we should always support /loading/ these python types...?
+# Extra Python types that don't have native YAML equivalents, but that PyYAML
+# supports with !!python/foo tags.  Dumping them isn't supported by default,
+# but loading them is, since there's no good reason for it not to be.
+# A couple of these dumpers override builtin type support.  For example, tuples
+# are dumped as lists by default, but this registry will dump them as
+# !!python/tuple.
 PYTHON_TYPES = CamelRegistry()
 
 
@@ -257,7 +269,7 @@ def _dump_tuple(dumper, data):
     return list(data)
 
 
-@PYTHON_TYPES.loader(tuple, YAML_TAG_PREFIX + 'python/tuple')
+@STANDARD_TYPES.loader(tuple, YAML_TAG_PREFIX + 'python/tuple')
 def _load_tuple(loader, data):
     return tuple(data)
 
@@ -272,7 +284,7 @@ def _dump_complex(dumper, data):
         return ret
 
 
-@PYTHON_TYPES.loader(complex, YAML_TAG_PREFIX + 'python/complex')
+@STANDARD_TYPES.loader(complex, YAML_TAG_PREFIX + 'python/complex')
 def _load_complex(loader, data):
     return complex(data)
 
@@ -285,7 +297,7 @@ def _dump_complex(dumper, data):
         return list(data)
 
 
-@PYTHON_TYPES.loader(frozenset, YAML_TAG_PREFIX + 'python/frozenset')
+@STANDARD_TYPES.loader(frozenset, YAML_TAG_PREFIX + 'python/frozenset')
 def _load_complex(loader, data):
     return frozenset(data)
 
@@ -296,9 +308,10 @@ if hasattr(types, 'SimpleNamespace'):
         return data.__dict__
 
 
-    @PYTHON_TYPES.loader(types.SimpleNamespace, YAML_TAG_PREFIX + 'python/namespace')
+    @STANDARD_TYPES.loader(types.SimpleNamespace, YAML_TAG_PREFIX + 'python/namespace')
     def _load_simple_namespace(loader, data):
         return types.SimpleNamespace(**data)
 
 
+STANDARD_TYPES.freeze()
 PYTHON_TYPES.freeze()
