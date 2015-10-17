@@ -9,23 +9,18 @@
 # TODO BEFORE PUBLISHING:
 # - /must/ strip the leading ! from tag names and allow giving a prefix (difficulty: have to do %TAG directive manually)
 # - /must/ remove type arg from loader  (would be nice to have as documentation, but is useless?  blurgh)
-# - /must/ figure out what happens with subclasses, and block if necessary for now, or make opt-in (but then, what happens with the tag, to indicate the subclass?)
 # - /must/ work on python 2
 # - /must/ use python 3 semantics for strings
 # - better versioning story, interop with no version somehow, what is the use case for versionless?  assuming it will never change?  imo should require version
 # - should write some docs, both on camel and on yaml
 
-# TODO test a versioned thing
-# TODO how does versioning interact with unversioned...?  maybe /require/ version, don't default to None
-
-
 # TODO from alex gaynor's talk, starting around 24m in:
 # - class is deleted (if it's useless, just return a dummy value)
 # - attribute changes
 
-# TODO minor questions and gripes:
-# - should this complain if there are overlapping definitions?
-# - how do we handle subclasses?  how does yaml?  what if there are conflicts?
+# TODO little niceties
+# - complain if there are overlapping definitions within the same registry?
+# - opt-in thing for subclasses, i think pyyaml has some facilities for this even (multi)
 # - dumper and loader could be easily made to work on methods...  i think...  in py3
 
 
