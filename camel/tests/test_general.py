@@ -94,7 +94,7 @@ def dump_dice(data):
     return "{}d{}".format(*data)
 
 
-@reg.loader(DieRoll, '!roll')
+@reg.loader('!roll')
 def load_dice(data):
     # TODO enforce incoming data is a string?
     a, _, b = data.partition('d')

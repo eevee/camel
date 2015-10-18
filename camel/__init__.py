@@ -8,9 +8,6 @@
 
 # TODO BEFORE PUBLISHING:
 # - /must/ strip the leading ! from tag names and allow giving a prefix (difficulty: have to do %TAG directive manually)
-# - /must/ remove type arg from loader  (would be nice to have as documentation, but is useless?  blurgh)
-# - /must/ work on python 2
-# - /must/ use python 3 semantics for strings
 # - better versioning story, interop with no version somehow, what is the use case for versionless?  assuming it will never change?  imo should require version
 # - should write some docs, both on camel and on yaml
 
@@ -207,7 +204,7 @@ class CamelRegistry(object):
     # Loading
     # TODO implement "upgrader", which upgrades from one version to another
 
-    def loader(self, cls, tag, version=None):
+    def loader(self, tag, version=None):
         if self.frozen:
             raise RuntimeError("Can't add to a frozen registry")
 
@@ -219,7 +216,7 @@ class CamelRegistry(object):
             tag = "{}#{}".format(tag, version)
 
         def decorator(f):
-            self.loaders[tag] = cls, functools.partial(self.run_constructor, f)
+            self.loaders[tag] = functools.partial(self.run_constructor, f)
             return f
 
         return decorator
@@ -236,7 +233,7 @@ class CamelRegistry(object):
         return constructor(data)
 
     def inject_loaders(self, loader):
-        for tag, (cls, constructor) in self.loaders.items():
+        for tag, constructor in self.loaders.items():
             loader.add_constructor(tag, constructor)
 
 
@@ -266,7 +263,7 @@ def _dump_ordered_dict(data):
     return pairs
 
 
-@STANDARD_TYPES.loader(collections.OrderedDict, YAML_TAG_PREFIX + 'omap')
+@STANDARD_TYPES.loader(YAML_TAG_PREFIX + 'omap')
 def _load_ordered_dict(data):
     # TODO assert only single kv per thing
     return collections.OrderedDict(
@@ -288,7 +285,7 @@ def _dump_tuple(data):
     return list(data)
 
 
-@STANDARD_TYPES.loader(tuple, YAML_TAG_PREFIX + 'python/tuple')
+@STANDARD_TYPES.loader(YAML_TAG_PREFIX + 'python/tuple')
 def _load_tuple(data):
     return tuple(data)
 
@@ -305,7 +302,7 @@ def _dump_complex(data):
         return ret
 
 
-@STANDARD_TYPES.loader(complex, YAML_TAG_PREFIX + 'python/complex')
+@STANDARD_TYPES.loader(YAML_TAG_PREFIX + 'python/complex')
 def _load_complex(data):
     return complex(data)
 
@@ -318,7 +315,7 @@ def _dump_frozenset(data):
         return list(data)
 
 
-@STANDARD_TYPES.loader(frozenset, YAML_TAG_PREFIX + 'python/frozenset')
+@STANDARD_TYPES.loader(YAML_TAG_PREFIX + 'python/frozenset')
 def _load_frozenset(data):
     return frozenset(data)
 
@@ -329,7 +326,7 @@ if hasattr(types, 'SimpleNamespace'):
         return data.__dict__
 
 
-    @STANDARD_TYPES.loader(types.SimpleNamespace, YAML_TAG_PREFIX + 'python/namespace')
+    @STANDARD_TYPES.loader(YAML_TAG_PREFIX + 'python/namespace')
     def _load_simple_namespace(data):
         return types.SimpleNamespace(**data)
 
