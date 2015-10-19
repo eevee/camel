@@ -2,3 +2,4 @@
 *.pyo
 .cache/
 __pycache__/
+docs/_build/
