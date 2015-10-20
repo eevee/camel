@@ -3,6 +3,8 @@
 # - allow prefixing (in the Camel obj?) otherwise assume local, don't require the leading !
 # - figure out namespacing and urls and whatever the christ
 # - document exactly which ones we support (i.e., yaml supports)
+# - support the attrs module, if installed, somehow
+# - consider using (optionally?) ruamel.yaml, which roundtrips comments, merges, anchors, ...
 # TODO, general:
 # - DWIM -- block style except for very short sequences (if at all?), quotey style for long text...
 
@@ -109,11 +111,15 @@ class CamelLoader(SafeLoader):
 class Camel(object):
     def __init__(self, registries=()):
         self.registries = (STANDARD_TYPES,) + tuple(registries)
+        self.version_locks = {}  # class => version
+
+    def lock_version(self, cls, version):
+        self.version_locks[cls] = version
 
     def make_dumper(self, stream):
         dumper = CamelDumper(stream, default_flow_style=False)
         for registry in self.registries:
-            registry.inject_dumpers(dumper)
+            registry.inject_dumpers(dumper, version_locks=self.version_locks)
         return dumper
 
     def dump(self, data):
@@ -150,29 +156,55 @@ class Camel(object):
             yield loader.get_data()
 
 
+class DuplicateVersion(ValueError):
+    pass
+
+
+class NoSuchVersion(KeyError):
+    pass
+
+
 class CamelRegistry(object):
     frozen = False
 
     def __init__(self):
-        self.dumpers = {}
-        self.loaders = {}
+        # type => {version => function)
+        self.dumpers = collections.defaultdict(dict)
+        # base tag => {version => function}
+        self.loaders = collections.defaultdict(dict)
 
     def freeze(self):
         self.frozen = True
 
     # Dumping
 
-    def dumper(self, cls, tag, version=None):
+    def _check_tag(self, tag):
+        # Good a place as any, I suppose
         if self.frozen:
             raise RuntimeError("Can't add to a frozen registry")
 
-        assert '#' not in tag
-        if version is not None:
-            assert isinstance(version, (int, float))
-            tag = "{}#{}".format(tag, version)
+        if ';' in tag:
+            raise ValueError(
+                "Tags may not contain semicolons: {0!r}".format(tag))
+
+    def dumper(self, cls, tag, version=None):
+        self._check_tag(tag)
+
+        if version in self.dumpers[cls]:
+            raise DuplicateVersion
+
+        if version is None:
+            full_tag = tag
+        elif isinstance(version, (int, _long)) and version > 0:
+            full_tag = "{0};{1}".format(tag, version)
+        else:
+            raise TypeError(
+                "Expected None or a positive integer version; "
+                "got {0!r} instead".format(version))
 
         def decorator(f):
-            self.dumpers[tag] = cls, functools.partial(self.run_representer, f, tag)
+            self.dumpers[cls][version] = functools.partial(
+                self.run_representer, f, full_tag)
             return f
 
         return decorator
@@ -197,26 +229,36 @@ class CamelRegistry(object):
                 "for {!r} returned {!r}, which is of type {!r}"
                 .format(data, canon_value, canon_type))
 
-    def inject_dumpers(self, dumper):
-        for tag, (cls, representer) in self.dumpers.items():
+    def inject_dumpers(self, dumper, version_locks=None):
+        if not version_locks:
+            version_locks = {}
+
+        for cls, versions in self.dumpers.items():
+            version = version_locks.get(cls, max)
+            if versions and version is max:
+                if None in versions:
+                    representer = versions[None]
+                else:
+                    representer = versions[max(versions)]
+            elif version in versions:
+                representer = versions[version]
+            else:
+                raise KeyError(
+                    "Don't know how to dump version {0!r} of type {1!r}"
+                    .format(version, cls))
             dumper.add_representer(cls, representer)
 
     # Loading
     # TODO implement "upgrader", which upgrades from one version to another
 
     def loader(self, tag, version=None):
-        if self.frozen:
-            raise RuntimeError("Can't add to a frozen registry")
+        self._check_tag(tag)
 
-        # TODO is there any good point to passing in cls
-        # TODO this is copy/pasted, and hokey besides
-        assert '#' not in tag
-        if version is not None:
-            assert isinstance(version, (int, float))
-            tag = "{}#{}".format(tag, version)
+        if version in self.loaders[tag]:
+            raise DuplicateVersion
 
         def decorator(f):
-            self.loaders[tag] = functools.partial(self.run_constructor, f)
+            self.loaders[tag][version] = functools.partial(self.run_constructor, f)
             return f
 
         return decorator
@@ -233,8 +275,25 @@ class CamelRegistry(object):
         return constructor(data)
 
     def inject_loaders(self, loader):
-        for tag, constructor in self.loaders.items():
-            loader.add_constructor(tag, constructor)
+        for tag, versions in self.loaders.items():
+            # "all" loader overrides everything
+            if all in versions:
+                loader.add_constructor(tag, versions[all])
+                # Including unrecognized versions
+                # TODO need a way to pass the version in, oops
+                #loader.add_multi_constructor(tag + ";", lambda loader
+                continue
+
+            # Otherwise, add each constructor individually
+            for version, constructor in versions.items():
+                if version is None:
+                    loader.add_constructor(tag, constructor)
+                elif version is any:
+                    # TODO this should act as a fallback using multi
+                    pass
+                else:
+                    full_tag = "{0};{1}".format(tag, version)
+                    loader.add_constructor(full_tag, constructor)
 
 
 # TODO "raw" loaders and dumpers that get access to loader/dumper and deal with
