@@ -100,42 +100,48 @@ Tags
 
 Tags are indicated with ``!``, and describe the *type* of a node.  This allows
 for adding new types without changing the syntax or mingling types with data.
-Tag names are limited to the URI character set, with any other characters
-encoded as UTF-8 and then percent-encoded.
+Tag names are URIs, with any non-URI characters encoded as UTF-8 and then
+percent-encoded.  YAML suggests using the ``tag:`` scheme and your domain name
+to help keep tags globally unique; for example, the tag for a string is
+``tag:yaml.org,2002:str``.  (I don't know why a year is in there, let alone
+with a comma.)
 
-Tags are generally written as ``!foo!bar``, where ``!foo!`` is a *named tag
-handle* that expands to a given prefix, kind of like XML namespacing.  Tag
-handles must be defined by a ``%TAG`` directive at the beginning of the
-stream::
+That's quite a mouthful, so tags are written in shorthand with a prefix, like
+``!foo!bar``.  The ``!foo!`` is a *named tag handle* that expands to a given
+prefix, kind of like XML namespacing.  Tag handles must be defined by a
+``%TAG`` directive at the beginning of the stream::
 
     %TAG !foo! tag:example.com,2015:app/
 
-The full name of ``!foo!bar`` would then be ``tag:example.com,2015:app/bar``.
-YAML suggests that all full tag names begin with ``tag:`` and include a domain
-so that they're globally unique.  That said, I have never in my life seen
-anyone actually make use of this.
+A tag of ``!foo!bar`` would then resolve to ``tag:example.com,2015:app/bar``.
 
-Instead, what everyone tends to do is make heavy use of the two special tag
-handles:
+That said, I have never in my life seen anyone actually use fully-qualified tag
+names.  Instead, what everyone tends to do is make heavy use of the two special
+tag handles:
 
-* ``!bar`` uses the *primary tag handle* ``!``, which by default expands to
-  ``!``.  So ``!bar`` just resolves to ``!bar``, a *local tag*, specific to
-  the document and not expected to be globally unique.
+* The *primary tag handle* is ``!``, which by default expands to ``!``.  So
+  ``!bar`` just resolves to ``!bar``, a *local tag*, specific to the document
+  and not expected to be unique.
 
-  Note that *any* full tag name beginning with ``!`` is a local tag, so
+  Note that **any** resolved tag name beginning with ``!`` is a local tag, so
   you're free to do something like this::
 
     %TAG !foo! !foo-types/
 
   Now ``!foo!bar`` is shorthand for ``!foo-types/bar``, which is still local.
-  This is a little confusing, I know.
+  Yes, it's a little confusing that ``!`` is used both for prefixing and for
+  resolved local tags.
   
-* ``!!bar`` uses the *secondary tag handle* ``!!``, which by default expands to
+* The *secondary tag handle* is ``!!``, which by default expands to
   ``tag:yaml.org,2002:``, the prefix YAML uses for its own built-in types.  So
-  ``!!bar`` resolves to ``tag:yaml.org,2002:bar``.
+  ``!!bar`` resolves to ``tag:yaml.org,2002:bar``, and the tag for a string
+  would more commonly be written as ``!!str``.  Defining new tags that use
+  ``!!`` is impolite.
 
 Both special handles can be reassigned with a ``%TAG`` directive, just like any
-other handle.
+other handle.  Reassigning ``!`` is an easy way to change a whole document from
+local tags to global tags.  Reassigning ``!!`` is an easy way to confuse
+people.
 
 Tags can also be written as ``!<foo>``, in which case ``foo`` is taken to be
 the *verbatim* final name of the tag, ignoring ``%TAG`` and any other
