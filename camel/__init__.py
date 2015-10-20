@@ -167,7 +167,9 @@ class NoSuchVersion(KeyError):
 class CamelRegistry(object):
     frozen = False
 
-    def __init__(self):
+    def __init__(self, tag_prefix='!'):
+        self.tag_prefix = tag_prefix
+
         # type => {version => function)
         self.dumpers = collections.defaultdict(dict)
         # base tag => {version => function}
@@ -187,11 +189,13 @@ class CamelRegistry(object):
             raise ValueError(
                 "Tags may not contain semicolons: {0!r}".format(tag))
 
-    def dumper(self, cls, tag, version=None):
+    def dumper(self, cls, tag, version):
         self._check_tag(tag)
 
         if version in self.dumpers[cls]:
             raise DuplicateVersion
+
+        tag = self.tag_prefix + tag
 
         if version is None:
             full_tag = tag
@@ -251,19 +255,29 @@ class CamelRegistry(object):
     # Loading
     # TODO implement "upgrader", which upgrades from one version to another
 
-    def loader(self, tag, version=None):
+    def loader(self, tag, version):
         self._check_tag(tag)
 
         if version in self.loaders[tag]:
             raise DuplicateVersion
 
+        tag = self.tag_prefix + tag
+
         def decorator(f):
-            self.loaders[tag][version] = functools.partial(self.run_constructor, f)
+            self.loaders[tag][version] = functools.partial(
+                self.run_constructor, f, version)
             return f
 
         return decorator
 
-    def run_constructor(self, constructor, loader, node):
+    def run_constructor(self, constructor, version, *yaml_args):
+        # Two args for add_constructor, three for add_multi_constructor
+        if len(yaml_args) == 3:
+            loader, suffix, node = yaml_args
+            version = int(suffix)
+        else:
+            loader, node = yaml_args
+
         if isinstance(node, yaml.ScalarNode):
             data = loader.construct_scalar(node)
         elif isinstance(node, yaml.SequenceNode):
@@ -272,16 +286,17 @@ class CamelRegistry(object):
             data = loader.construct_mapping(node, deep=True)
         else:
             raise TypeError("Not a primitive node: {!r}".format(node))
-        return constructor(data)
+        return constructor(data, version)
 
     def inject_loaders(self, loader):
         for tag, versions in self.loaders.items():
             # "all" loader overrides everything
             if all in versions:
-                loader.add_constructor(tag, versions[all])
-                # Including unrecognized versions
-                # TODO need a way to pass the version in, oops
-                #loader.add_multi_constructor(tag + ";", lambda loader
+                if None in versions:
+                    loader.add_constructor(tag, versions[None])
+                else:
+                    loader.add_constructor(tag, versions[all])
+                loader.add_multi_constructor(tag + ";", versions[all])
                 continue
 
             # Otherwise, add each constructor individually
@@ -289,8 +304,9 @@ class CamelRegistry(object):
                 if version is None:
                     loader.add_constructor(tag, constructor)
                 elif version is any:
-                    # TODO this should act as a fallback using multi
-                    pass
+                    loader.add_multi_constructor(tag + ";", versions[any])
+                    if None not in versions:
+                        loader.add_constructor(tag, versions[any])
                 else:
                     full_tag = "{0};{1}".format(tag, version)
                     loader.add_constructor(full_tag, constructor)
@@ -306,15 +322,15 @@ class CamelRegistry(object):
 # curiously overlooked.  Loaded first by default into every Camel object.
 # Ref: http://yaml.org/type/
 # TODO pyyaml supports tags like !!python/list; do we care?
-STANDARD_TYPES = CamelRegistry()
+STANDARD_TYPES = CamelRegistry(tag_prefix=YAML_TAG_PREFIX)
 
 
-@STANDARD_TYPES.dumper(frozenset, YAML_TAG_PREFIX + 'set')
+@STANDARD_TYPES.dumper(frozenset, 'set', version=None)
 def _dump_frozenset(data):
     return dict.fromkeys(data)
 
 
-@STANDARD_TYPES.dumper(collections.OrderedDict, YAML_TAG_PREFIX + 'omap')
+@STANDARD_TYPES.dumper(collections.OrderedDict, 'omap', version=None)
 def _dump_ordered_dict(data):
     pairs = []
     for key, value in data.items():
@@ -322,8 +338,8 @@ def _dump_ordered_dict(data):
     return pairs
 
 
-@STANDARD_TYPES.loader(YAML_TAG_PREFIX + 'omap')
-def _load_ordered_dict(data):
+@STANDARD_TYPES.loader('omap', version=None)
+def _load_ordered_dict(data, version):
     # TODO assert only single kv per thing
     return collections.OrderedDict(
         next(iter(datum.items())) for datum in data
@@ -336,20 +352,20 @@ def _load_ordered_dict(data):
 # A couple of these dumpers override builtin type support.  For example, tuples
 # are dumped as lists by default, but this registry will dump them as
 # !!python/tuple.
-PYTHON_TYPES = CamelRegistry()
+PYTHON_TYPES = CamelRegistry(tag_prefix=YAML_TAG_PREFIX)
 
 
-@PYTHON_TYPES.dumper(tuple, YAML_TAG_PREFIX + 'python/tuple')
+@PYTHON_TYPES.dumper(tuple, 'python/tuple', version=None)
 def _dump_tuple(data):
     return list(data)
 
 
-@STANDARD_TYPES.loader(YAML_TAG_PREFIX + 'python/tuple')
-def _load_tuple(data):
+@STANDARD_TYPES.loader('python/tuple', version=None)
+def _load_tuple(data, version):
     return tuple(data)
 
 
-@PYTHON_TYPES.dumper(complex, YAML_TAG_PREFIX + 'python/complex')
+@PYTHON_TYPES.dumper(complex, 'python/complex', version=None)
 def _dump_complex(data):
     ret = repr(data)
     if str is bytes:
@@ -361,12 +377,12 @@ def _dump_complex(data):
         return ret
 
 
-@STANDARD_TYPES.loader(YAML_TAG_PREFIX + 'python/complex')
-def _load_complex(data):
+@STANDARD_TYPES.loader('python/complex', version=None)
+def _load_complex(data, version):
     return complex(data)
 
 
-@PYTHON_TYPES.dumper(frozenset, YAML_TAG_PREFIX + 'python/frozenset')
+@PYTHON_TYPES.dumper(frozenset, 'python/frozenset', version=None)
 def _dump_frozenset(data):
     try:
         return list(sorted(data))
@@ -374,19 +390,19 @@ def _dump_frozenset(data):
         return list(data)
 
 
-@STANDARD_TYPES.loader(YAML_TAG_PREFIX + 'python/frozenset')
-def _load_frozenset(data):
+@STANDARD_TYPES.loader('python/frozenset', version=None)
+def _load_frozenset(data, version):
     return frozenset(data)
 
 
 if hasattr(types, 'SimpleNamespace'):
-    @PYTHON_TYPES.dumper(types.SimpleNamespace, YAML_TAG_PREFIX + 'python/namespace')
+    @PYTHON_TYPES.dumper(types.SimpleNamespace, 'python/namespace', version=None)
     def _dump_simple_namespace(data):
         return data.__dict__
 
 
-    @STANDARD_TYPES.loader(YAML_TAG_PREFIX + 'python/namespace')
-    def _load_simple_namespace(data):
+    @STANDARD_TYPES.loader('python/namespace', version=None)
+    def _load_simple_namespace(data, version):
         return types.SimpleNamespace(**data)
 
 

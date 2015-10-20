@@ -89,13 +89,13 @@ class DieRoll(tuple):
 reg = CamelRegistry()
 
 
-@reg.dumper(DieRoll, '!roll')
+@reg.dumper(DieRoll, 'roll', version=None)
 def dump_dice(data):
     return "{}d{}".format(*data)
 
 
-@reg.loader('!roll')
-def load_dice(data):
+@reg.loader('roll', version=None)
+def load_dice(data, version):
     # TODO enforce incoming data is a string?
     a, _, b = data.partition('d')
     return DieRoll(int(a), int(b))
