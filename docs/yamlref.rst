@@ -74,7 +74,7 @@ support built in.
 Documents may be preceded by *directives*, in which case the ``---`` is
 required to indicate the end of the directives.  Directives are a ``%``
 followed by an identifier and some parameters.  (This is how directives are
-distinguished from a bare document without ``---``, so the first line non-blank
+distinguished from a bare document without ``---``, so the first non-blank
 non-comment line of a document can't start with a ``%``.)
 
 There are only two directives at the moment: ``%YAML`` specifies the YAML
