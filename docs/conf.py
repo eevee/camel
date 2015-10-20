@@ -30,7 +30,11 @@ import os
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.intersphinx',
 ]
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/3', None),
+  }
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -46,7 +50,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Camel'
-copyright = u'2015, Eevee (Alex Munroe)'
+copyright = u'2015, Eevee (Lexy Munroe)'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -229,7 +233,7 @@ latex_documents = [
 # (source start file, name, description, authors, manual section).
 man_pages = [
     ('index', 'camel', u'Camel Documentation',
-     [u'Eevee (Alex Munroe)'], 1)
+     [u'Eevee (Lexy Munroe)'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -243,7 +247,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
   ('index', 'Camel', u'Camel Documentation',
-   u'Eevee (Alex Munroe)', 'Camel', 'One line description of project.',
+   u'Eevee (Lexy Munroe)', 'Camel', 'One line description of project.',
    'Miscellaneous'),
 ]
 

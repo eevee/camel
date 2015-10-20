@@ -65,19 +65,21 @@ YAML operates on *streams*, which can contain multiple distinct structures,
 each parsed individually.  Each structure is called a *document*.
 
 A document begins with ``---`` and ends with ``...``.  Both are optional,
-though if you have ``...``, it cannot be followed by anything other than
-``---`` or the end of the stream.  You don't see multiple documents very often,
-but it's a very useful feature for sending intermittent chunks of data over a
-single network connection.  With JSON you'd usually put each chunk on its own
-line and delimit with newlines; YAML has support built in.
+though a ``...`` can only be followed by directives or ``---``.  You don't see
+multiple documents very often, but it's a very useful feature for sending
+intermittent chunks of data over a single network connection.  With JSON you'd
+usually put each chunk on its own line and delimit with newlines; YAML has
+support built in.
 
-TODO wrong, directives may come between ... ---
+Documents may be preceded by *directives*, in which case the ``---`` is
+required to indicate the end of the directives.  Directives are a ``%``
+followed by an identifier and some parameters.  (This is how directives are
+distinguished from a bare document without ``---``, so the first line non-blank
+non-comment line of a document can't start with a ``%``.)
 
-A stream may have *directives* before the first document, in which case the
-``---`` is required.  Directives are a ``%`` followed by an identifier and some
-parameters.  There are only two directives at the moment: ``%YAML`` specifies
-the YAML version of the document, and ``%TAG`` is used for tag shorthand,
-described shortly.  Use of directives is, again, fairly uncommon.
+There are only two directives at the moment: ``%YAML`` specifies the YAML
+version of the document, and ``%TAG`` is used for tag shorthand, described
+shortly.  Use of directives is, again, fairly uncommon.
 
 *Comments* may appear anywhere.  ``#`` begins a comment, and it runs until the
 end of the line.  In most cases, comments are whitespace: they don't affect
@@ -481,8 +483,8 @@ It's fairly uncommon to see anything but strings as keys, though, since
 languages often don't support it.  Python can't have lists and dicts as dict
 keys; Perl 5 and JavaScript only support string keys; and so on.
 
-Unlike sequences, you may **not** nest block mappings on the same line.  This
-is invalid::
+Unlike sequences, you may **not** nest another block inside a block mapping on
+the same line.  This is invalid::
 
     one: two: buckle my shoe
 
@@ -492,7 +494,16 @@ But this is fine::
       two: 2
     - three: 3
       four: 4
-        
+
+You can also nest a block sequence without indenting::
+
+    foods:
+    - burger
+    - fries
+    drinks:
+    - soda
+    - iced tea
+
 One slight syntactic wrinkle: in either style, the colon must be followed by
 whitespace.  ``foo:bar`` is a single string, remember.  (For JSON's sake, the
 whitespace can be omitted if the colon immediately follows a flow sequence, a

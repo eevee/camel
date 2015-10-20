@@ -6,11 +6,16 @@
 Welcome to Camel's documentation!
 =================================
 
+Camel is a Python serialization library that forces you to explicitly describe
+how to dump or load your types.  It's good for you, just like eating your
+vegetables.
+
 Contents:
 
 .. toctree::
    :maxdepth: 2
 
+   camel
    yamlref
 
 
