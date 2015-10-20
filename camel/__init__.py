@@ -1,26 +1,12 @@
 # encoding: utf8
-# TODO, this specifically:
-# - allow prefixing (in the Camel obj?) otherwise assume local, don't require the leading !
-# - figure out namespacing and urls and whatever the christ
-# - document exactly which ones we support (i.e., yaml supports)
+# TODO
+# - support %TAG directives some nice reasonable way
 # - support the attrs module, if installed, somehow
 # - consider using (optionally?) ruamel.yaml, which roundtrips comments, merges, anchors, ...
-# TODO, general:
-# - DWIM -- block style except for very short sequences (if at all?), quotey style for long text...
-
-# TODO BEFORE PUBLISHING:
-# - /must/ strip the leading ! from tag names and allow giving a prefix (difficulty: have to do %TAG directive manually)
-# - better versioning story, interop with no version somehow, what is the use case for versionless?  assuming it will never change?  imo should require version
-# - should write some docs, both on camel and on yaml
-
-# TODO from alex gaynor's talk, starting around 24m in:
-# - class is deleted (if it's useless, just return a dummy value)
-# - attribute changes
-
-# TODO little niceties
-# - complain if there are overlapping definitions within the same registry?
-# - opt-in thing for subclasses, i think pyyaml has some facilities for this even (multi)
-# - dumper and loader could be easily made to work on methods...  i think...  in py3
+# - DWIM formatting: block style except for very short sequences (if at all?), quotey style for long text...
+# - expose multi representers and plain scalar parser things
+# - make dumper/loader work on methods?  ehh
+# - "raw" loaders and dumpers that get to deal with raw yaml nodes?
 
 
 from __future__ import absolute_import
@@ -312,11 +298,6 @@ class CamelRegistry(object):
                     loader.add_constructor(full_tag, constructor)
 
 
-# TODO "raw" loaders and dumpers that get access to loader/dumper and deal with
-# raw nodes?
-# TODO multi_constructor, multi_representer, implicit_resolver
-
-
 # YAML's "language-independent types" — not builtins, but supported with
 # standard !! tags.  Most of them are built into pyyaml, but OrderedDict is
 # curiously overlooked.  Loaded first by default into every Camel object.
@@ -340,9 +321,8 @@ def _dump_ordered_dict(data):
 
 @STANDARD_TYPES.loader('omap', version=None)
 def _load_ordered_dict(data, version):
-    # TODO assert only single kv per thing
     return collections.OrderedDict(
-        next(iter(datum.items())) for datum in data
+        pair for datum in data for (pair,) in [datum.items()]
     )
 
 
