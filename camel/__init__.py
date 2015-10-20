@@ -146,10 +146,6 @@ class DuplicateVersion(ValueError):
     pass
 
 
-class NoSuchVersion(KeyError):
-    pass
-
-
 class CamelRegistry(object):
     frozen = False
 
