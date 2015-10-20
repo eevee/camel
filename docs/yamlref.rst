@@ -131,9 +131,8 @@ handles:
   This is a little confusing, I know.
   
 * ``!!bar`` uses the *secondary tag handle* ``!!``, which by default expands to
-  ``tag:yaml.org,2002:``.  That's the prefix YAML uses for its own built-in
-  types.  Unfortunately, PyYAML also uses it for Python-specific types, e.g.
-  ``!!python/tuple``, and Camel has inherited this impolite behavior.
+  ``tag:yaml.org,2002:``, the prefix YAML uses for its own built-in types.  So
+  ``!!bar`` resolves to ``tag:yaml.org,2002:bar``.
 
 Both special handles can be reassigned with a ``%TAG`` directive, just like any
 other handle.
