@@ -256,7 +256,8 @@ plain scalar to be a string, it must meet these restrictions:
   ``off``, ``null``, or any of those words in uppercase or title case, which
   would all be parsed as booleans or nulls.
 
-* It must not be ``~``, ``=``, or ``<<``, which are all special values.
+* It must not be ``~``, which is null.  If it's a mapping key, it must not be
+  ``=`` or ``<<``, which are special key values.
 
 * It must not be something that looks like a number or timestamp.  I wouldn't
   bet on anything that consists exclusively of digits, dashes, underscores, and
