@@ -152,7 +152,7 @@ type of the node.  In practice, it just means that scalars are inspected to see
 whether they're booleans, integers, floats, whatever else, or just strings.
 
 The ``!`` tag forces a node to be interpreted as a basic built-in type, based
-on its kind: ``!!str``, ``!!seq``, or ``!map``.  You can explicitly give the
+on its kind: ``!!str``, ``!!seq``, or ``!!map``.  You can explicitly give the
 ``!`` tag to a node if you want, for example writing ``! true`` or ``! 133`` to
 force parsing as strings.  Or you could use quotes.  Just saying.
 
