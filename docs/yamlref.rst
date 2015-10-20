@@ -23,7 +23,9 @@ Human-readability means that much of YAML's syntax is optional, wherever it
 would be unambiguous and easier on a human.  The trade-off is more complexity
 in parsers and emitters.
 
-Here's an example document, configuration for some hypothetical app::
+Here's an example document, configuration for some hypothetical app:
+
+.. code-block:: yaml
 
     database:
         username: admin
@@ -79,7 +81,7 @@ non-comment line of a document can't start with a ``%``.)
 
 There are only two directives at the moment: ``%YAML`` specifies the YAML
 version of the document, and ``%TAG`` is used for tag shorthand, described
-shortly.  Use of directives is, again, fairly uncommon.
+in :ref:`yamlref-more-tags`.  Use of directives is, again, fairly uncommon.
 
 *Comments* may appear anywhere.  ``#`` begins a comment, and it runs until the
 end of the line.  In most cases, comments are whitespace: they don't affect
@@ -88,78 +90,40 @@ own line is the same as a blank line.  The few exceptions are not too
 surprising; for example, you can't have a comment between the key and colon in
 ``key:``.
 
-A YAML document is a graph of values, called *nodes*, which come in three
-general *kinds*: mappings, sequences, and scalars.  Each is described in detail
-in its own section below.
+A YAML document is a graph of values, called *nodes*.  See
+:ref:`yamlref-kinds`.
 
 Nodes may be prefixed with up to two properties: a *tag* and an *anchor*.
-Order doesn't matter, and both are optional.
+Order doesn't matter, and both are optional.  Properties can be given to any
+value, regardless of kind or style.
 
 Tags
 ....
 
-Tags are indicated with ``!``, and describe the *type* of a node.  This allows
-for adding new types without changing the syntax or mingling types with data.
-Tag names are URIs, with any non-URI characters encoded as UTF-8 and then
-percent-encoded.  YAML suggests using the ``tag:`` scheme and your domain name
-to help keep tags globally unique; for example, the tag for a string is
-``tag:yaml.org,2002:str``.  (I don't know why a year is in there, let alone
-with a comma.)
+Tags are prefixed with ``!`` and describe the *type* of a node.  This allows
+for adding new types without having to extend the syntax or mingle type
+information with data.  Omitting the tag leaves the type to the parser's
+discretion; usually that means you'll get lists, dicts, strings, numbers, and
+other simple types.
 
-That's quite a mouthful, so tags are written in shorthand with a prefix, like
-``!foo!bar``.  The ``!foo!`` is a *named tag handle* that expands to a given
-prefix, kind of like XML namespacing.  Named tag handles must be defined by a
-``%TAG`` directive before the document::
+You'll probably only see tags in two forms:
 
-    %TAG !foo! tag:example.com,2015:app/
+* ``!foo`` is a "local" tag, used for some custom type that's specific to the
+  document.
 
-A tag of ``!foo!bar`` would then resolve to ``tag:example.com,2015:app/bar``.
+* ``!!bar`` is a built-in YAML type from the `YAML tag repository`_.  Most of
+  these are inferred from plain data — ``!!seq`` for sequences, ``!!int`` for
+  numbers, and so on — but a few don't have dedicated syntax and have to be
+  given explicitly.
 
-That said, I have never in my life seen anyone actually use fully-qualified tag
-names.  Instead, what everyone tends to do is make heavy use of the two special
-tag handles:
+  For example, ``!!binary`` is used for representing arbitrary binary data
+  encoded as base64.  So ``!!binary aGVsbG8=`` would parse as the bytestring
+  ``hello``.
 
-* The *primary tag handle* is ``!``, which by default expands to ``!``.  So
-  ``!bar`` just resolves to ``!bar``, a *local tag*, specific to the document
-  and not expected to be unique.
+.. _YAML tag repository: http://yaml.org/type/
 
-  Note that **any** resolved tag name beginning with ``!`` is a local tag, so
-  you're free to do something like this::
-
-    %TAG !foo! !foo-types/
-
-  Now ``!foo!bar`` is shorthand for ``!foo-types/bar``, which is still local.
-  Yes, it's a little confusing that ``!`` is used both for prefixing and for
-  resolved local tags.
-  
-* The *secondary tag handle* is ``!!``, which by default expands to
-  ``tag:yaml.org,2002:``, the prefix YAML uses for its own built-in types.  So
-  ``!!bar`` resolves to ``tag:yaml.org,2002:bar``, and the tag for a string
-  would more commonly be written as ``!!str``.  Defining new tags that use
-  ``!!`` is impolite.
-
-Both special handles can be reassigned with a ``%TAG`` directive, just like any
-other handle.  Reassigning ``!`` is an easy way to change a whole document from
-local tags to global tags.  Reassigning ``!!`` is an easy way to confuse
-people.
-
-Tags can also be written as ``!<foo>``, in which case ``foo`` is taken to be
-the *verbatim* final name of the tag, ignoring ``%TAG`` and any other
-resolution mechanism.
-
-Every node has a tag, whether it's given one explicitly or not.  Nodes without
-explicit tags are given one of two special *non-specific* tags: ``!`` for
-quoted and folded scalars; or ``?`` for sequences, mappings, and plain scalars.
-
-The ``?`` tag tells the application to do *tag resolution*.  Technically, this
-means the application can do any kind of arbitrary inspection to figure out the
-type of the node.  In practice, it just means that scalars are inspected to see
-whether they're booleans, integers, floats, whatever else, or just strings.
-
-The ``!`` tag forces a node to be interpreted as a basic built-in type, based
-on its kind: ``!!str``, ``!!seq``, or ``!!map``.  You can explicitly give the
-``!`` tag to a node if you want, for example writing ``! true`` or ``! 133`` to
-force parsing as strings.  Or you could use quotes.  Just saying.
+There's much more to tags, most of which is rarely used in practice.  See
+:ref:`yamlref-more-tags`.
 
 Anchors
 .......
@@ -169,8 +133,9 @@ data structures.  Anchor names are prefixed with ``&`` and can't contain
 whitespace, brackets, braces, or commas.
 
 An *alias node* is an anchor name prefixed with ``*``, and indicates that the
-node with that anchor name should occur in both places.  For example, you could
-share configuration::
+node with that anchor name should occur in both places.  (Alias nodes can't
+have properties themselves; the properties of the anchored node are used.)
+For example, you might share configuration::
 
     host1:
         &common-host
@@ -182,22 +147,25 @@ Or serialize a list that contains itself::
 
     &me [*me]
 
-This is **not** a copy.  The exact same value is reused.
+.. note:: This is **not** a copy.  The exact same value is reused.
 
-An alias node refers to the most recent anchor with the same name.  Anchor
-names can be reassigned, and must appear before any alias node that tries to
-refer to them.
+Anchor names act somewhat like variable assignments: at any point in the
+document, the parser only knows about the anchors it's seen so far, and a
+second anchor with the same name takes precedence.  This means that aliases
+cannot refer to anchors that appear later in the document.
 
 Anchor names aren't intended to carry information, which unfortunately means
 that most YAML parsers throw them away, and re-serializing a document will get
 you anchor names like ``ANCHOR1``.
 
 
+.. _yamlref-kinds:
+
 Kinds of value
 --------------
 
-As mentioned above, there are three kinds, which reflect the general shape of
-some data.  Scalars are individual values; sequences are ordered collections;
+Values come in one of three *kinds*, which reflect the general "shape" of
+the data.  Scalars are individual values; sequences are ordered collections;
 mappings are unordered associations.  Each can be written in either a
 whitespace-sensitive *block style* or a more compact and explicit *flow style*.
 
@@ -209,7 +177,7 @@ exclusion: if it's not anything else, it's a plain scalar.  Technically, they
 can only be flow style, so they're really "plain flow scalar style" scalars.
 
 Plain scalars are the most flexible kind of value, and may resolve to a variety
-of types:
+of types from the `YAML tag repository`_:
 
 * Integers become, well, integers (``!!int``).  Leading ``0``, ``0b``, and
   ``0x`` are recognized as octal, binary, and hexadecimal.  ``_`` is allowed,
@@ -235,19 +203,28 @@ of types:
   midnight UTC.
 
 * ``=`` is a special value (``!!value``) used as a key in mappings.  I've never
-  seen it actually used, the thing it does is nonsense in Python, and PyYAML
-  doesn't support it correctly anyway, so don't worry about it.  Just remember
-  you can't use ``=`` as a plain string.
+  seen it actually used, and the thing it does is nonsense in many languages
+  anyway, so don't worry about it.  Just remember you can't use ``=`` as a
+  plain string.
 
 * ``<<`` is another special value (``!!merge``) used as a key in mappings.
-  This one is actually kind of useful; it's described below.
+  This one is actually kind of useful; it's described below in
+  :ref:`yamlref-merge-keys`.
 
-Otherwise, it's a string.  Well.  Probably.  As part of tag resolution, an
-application is allowed to parse plain scalars however it wants; you might add
-logic that parses ``1..5`` as a range type, or you might recognize keywords and
-replace them with special objects.  (This is what PyYAML's
-``add_implicit_resolver`` is for.)  But if you're doing any of that, you're
-hopefully aware of it.
+.. note:: The YAML spec has a notion of *schemas*, sets of types which are
+   recognized.  The recommended schema is "core", which doesn't actually
+   require ``!!timestamp`` support.  I think the idea is to avoid requiring
+   support for types that may not exist natively — a Perl YAML parser can't
+   reasonably handle ``!!timestamp`` out of the box, because Perl has no
+   built-in timestamp type.  So while you could technically run into a parser
+   that doesn't support floats (the "failsafe" schema only does strings!), it
+   probably won't come as a surprise.
+
+Otherwise, it's a string.  Well.  Probably.  As part of tag resolution (see
+:ref:`yamlref-more-tags`), an application is allowed to parse plain scalars
+however it wants; you might add logic that parses ``1..5`` as a range type, or
+you might recognize keywords and replace them with special objects.  But if
+you're doing any of that, you're hopefully aware of it.
 
 Between the above parsing and conflicts with the rest of YAML's syntax, for a
 plain scalar to be a string, it must meet these restrictions:
@@ -270,7 +247,7 @@ plain scalar to be a string, it must meet these restrictions:
 * If the first character is ``?``, ``:``, or ``-``, the next character must not
   be whitespace.  Otherwise it'll be parsed as a block mapping or sequence.
 
-* It must not contain `` #`` or ``: ``, which would be parsed as a comment or a
+* It must not contain `` #`` or ``: ``, which would be parsed as a comment or a
   key.  A hash not preceded by space or a colon not followed by space is fine.
 
 * If the string is inside a flow collection (i.e., inside ``[...]`` or
@@ -290,7 +267,7 @@ If you need explicit strings, you have some other options.
 
 
 Strings
-.......
+```````
 
 YAML has lots of ways to write explicit strings.  Aside from plain scalars,
 there are two other *flow scalar styles*.
@@ -305,20 +282,20 @@ Double-quoted strings are surrounded by ``"``.  Backslash escapes are recognized
 ==============      ======
 Sequence            Result
 ==============      ======
-``\0``              U+0000 NUL
-``\a``              U+0007 ALARM
+``\0``              U+0000 NULL
+``\a``              U+0007 BELL
 ``\b``              U+0008 BACKSPACE
-``\t``              U+0009 TAB
+``\t``              U+0009 CHARACTER TABULATION
 ``\n``              U+000A LINE FEED
-``\v``              U+000B VERTICAL TAB
+``\v``              U+000B LINE TABULATION
 ``\f``              U+000C FORM FEED
 ``\r``              U+000D CARRIAGE RETURN
 ``\e``              U+001B ESCAPE
-``\"``              U+0022 DOUBLE QUOTE
-``\/``              U+002F SLASH
-``\\``              U+005C BACKSLASH
-``\N``              U+0085
-``\_``              U+00A0 NON-BREAKING SPACE
+``\"``              U+0022 QUOTATION MARK
+``\/``              U+002F SOLIDUS
+``\\``              U+005C REVERSE SOLIDUS
+``\N``              U+0085 NEXT LINE
+``\_``              U+00A0 NO-BREAK SPACE
 ``\L``              U+2028 LINE SEPARATOR
 ``\P``              U+2029 PARAGRAPH SEPARATOR
 ``\xNN``            Unicode character ``NN``
@@ -349,7 +326,7 @@ Which becomes::
     line two
       line three
     line four
-     line five 
+     line five
 
 Right, well, I hope that clears that up.
 
@@ -388,14 +365,16 @@ Or folded style::
         two.
 
 Obviously folded style is more useful if you have paragraphs with longer lines.
+Note that there are two blank lines between paragraphs in folded style; a
+single blank line would be parsed as a single newline.
 
 The header has some other features, but I've never seen them used.  It consists
-of up to three parts.
+of up to three parts, with no intervening whitespace.
 
 1. The character indicating which block style to use.
 2. Optionally, the indentation level of the indented block, relative to its
    parent.  You only need this if the first line of the block starts with a
-   space; otherwise the space will count as part of the indentation.
+   space, because the space would be interpreted as indentation.
 3. Optionally, a "chomping" indicator.  The default behavior is to include the
    final newline as part of the string, but ignore any subsequent empty lines.
    You can use ``-`` here to ignore the final newline as well, or use ``+`` to
@@ -407,7 +386,7 @@ tag or an anchor before the header, as with any other node.
 
 
 Sequences
----------
+.........
 
 Sequences are ordered collections, with type ``!!seq``.  They're pretty simple.
 
@@ -435,7 +414,7 @@ Other blocks may be nested without intervening newlines::
 
 
 Mappings
---------
+........
 
 Mappings are unordered, er, mappings, with type ``!!map``.  The keys must be
 unique, but may be of any type.  Also, they're unordered.
@@ -448,7 +427,8 @@ comma is allowed, and whitespace doesn't matter.
 
 As a special case, inside a sequence, you can write a single-pair mapping
 without the braces.  So ``[a: b, c: d, e: f]`` is a sequence containing three
-mappings.  This is allowed in block sequences too, and is used for ``!!omap``.
+mappings.  This is allowed in block sequences too, and is used for the ordered
+mapping type ``!!omap``.
 
 Block style is actually a little funny.  The canonical form is a little
 surprising::
@@ -515,8 +495,10 @@ whitespace.  ``foo:bar`` is a single string, remember.  (For JSON's sake, the
 whitespace can be omitted if the colon immediately follows a flow sequence, a
 flow mapping, or a quoted string.)
 
+.. _yamlref-merge-keys:
+
 Merge keys
-..........
+``````````
 
 These are written ``<<`` and have type ``!!merge``.  A merge key should have
 another mapping (or sequence of mappings) as its value.  Each mapping is merged
@@ -539,3 +521,75 @@ This is generally used in conjunction with anchors to share default values::
         hostname: example3.com
         # we have a really, really good reason for doing this, really
         verify-host: false
+
+
+.. _yamlref-more-tags:
+
+More on tags
+------------
+
+``!!str`` is actually an illusion.
+
+Tag names are actually URIs, using UTF-8 percent-encoding.  YAML suggests using
+the ``tag:`` scheme and your domain name to help keep tags globally unique; for
+example, the string tag is really ``tag:yaml.org,2002:str``.  (I don't know why
+a year is in there, let alone the comma.)
+
+That's quite a mouthful, and wouldn't be recognized as a tag anyway, because
+tags have to start with ``!``.  So tags are written in shorthand with a prefix,
+like ``!foo!bar``.  The ``!foo!`` is a *named tag handle* that expands to a
+given prefix, kind of like XML namespacing.  Named tag handles must be defined
+by a ``%TAG`` directive before the document::
+
+    %TAG !foo! tag:example.com,2015:app/
+
+A tag of ``!foo!bar`` would then resolve to ``tag:example.com,2015:app/bar``.
+
+I've never seen ``%TAG`` used in practice.  Instead, everyone uses the two
+special tag handles.
+
+* The *primary tag handle* is ``!``, which by default expands to ``!``.  So
+  ``!bar`` just resolves to ``!bar``, a *local tag*, specific to the document
+  and not expected to be unique.
+
+* The *secondary tag handle* is ``!!``, which by default expands to
+  ``tag:yaml.org,2002:``, the prefix YAML uses for its own built-in types.  So
+  ``!!bar`` resolves to ``tag:yaml.org,2002:bar``, and the tag for a string
+  would more commonly be written as ``!!str``.  Defining new tags that use
+  ``!!`` is impolite.
+
+Both special handles can be reassigned with ``%TAG``, just like any other
+handle.  An important (and confusing) point here is that the **resolved** name
+determines whether or not a tag is local; how it's written is irrelevant.
+You're free to do this::
+
+    %TAG !foo! !foo-types/
+
+Now ``!foo!bar`` is shorthand for ``!foo-types/bar``, which is a local tag.
+You can also do the reverse::
+
+  %TAG ! tag:example.com,2015:legacy-types/
+
+Which would make ``!bar`` a global tag!  This is deliberate, as a quick way to
+convert an entire document from local tags to global tags.
+
+You can reassign ``!!``, too.  But let's not.
+
+Tags can also be written *verbatim* as ``!<foo>``, in which case ``foo`` is
+taken to be the resolved final name of the tag, ignoring ``%TAG`` and any other
+resolution mechanism.  This is the only way to write a global tag without using
+``%TAG``, since tags must start with a ``!``.
+
+Every node has a tag, whether it's given one explicitly or not.  Nodes without
+explicit tags are given one of two special *non-specific* tags: ``!`` for
+quoted and folded scalars; or ``?`` for sequences, mappings, and plain scalars.
+
+The ``?`` tag tells the application to do *tag resolution*.  Technically, this
+means the application can do any kind of arbitrary inspection to figure out the
+type of the node.  In practice, it just means that scalars are inspected to see
+whether they're booleans, integers, floats, whatever else, or just strings.
+
+The ``!`` tag forces a node to be interpreted as a basic built-in type, based
+on its kind: ``!!str``, ``!!seq``, or ``!!map``.  You can explicitly give the
+``!`` tag to a node if you want, for example writing ``! true`` or ``! 133`` to
+force parsing as strings.  Or you could use quotes.  Just saying.
