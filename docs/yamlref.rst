@@ -108,8 +108,8 @@ with a comma.)
 
 That's quite a mouthful, so tags are written in shorthand with a prefix, like
 ``!foo!bar``.  The ``!foo!`` is a *named tag handle* that expands to a given
-prefix, kind of like XML namespacing.  Tag handles must be defined by a
-``%TAG`` directive at the beginning of the stream::
+prefix, kind of like XML namespacing.  Named tag handles must be defined by a
+``%TAG`` directive before the document::
 
     %TAG !foo! tag:example.com,2015:app/
 
