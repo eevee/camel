@@ -6,7 +6,7 @@ YAML — and refuses to serialize them if you don't.
 
 Quick example:
 
-.. code-block: python
+.. code-block:: python
 
     from camel import Camel, CamelRegistry
 
