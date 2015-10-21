@@ -4,7 +4,9 @@ Camel
 Camel is a library that lets you describe how to serialize your objects to
 YAML — and refuses to serialize them if you don't.
 
-Quick example::
+Quick example:
+
+.. code-block: python
 
     from camel import Camel, CamelRegistry
 
@@ -17,13 +19,13 @@ Quick example::
 
     reg = CamelRegistry()
 
-    @reg.dumper(DieRoll, 'roll', version=None)
+    @reg.dumper(DieRoll, u'roll', version=None)
     def _dump_dice(data):
-        return "{}d{}".format(*data)
+        return u"{}d{}".format(*data)
 
-    @reg.loader('roll', version=None)
+    @reg.loader(u'roll', version=None)
     def _load_dice(data, version):
-        a, _, b = data.partition('d')
+        a, _, b = data.partition(u'd')
         return DieRoll(int(a), int(b))
 
     value = DieRoll(3, 6)
@@ -31,6 +33,7 @@ Quick example::
     print(camel.dump(value))
 
     # !roll 3d6
+    # ...
 
 Docs: http://camel.readthedocs.org/en/latest/
 
