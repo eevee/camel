@@ -532,8 +532,8 @@ More on tags
 
 Tag names are actually URIs, using UTF-8 percent-encoding.  YAML suggests using
 the ``tag:`` scheme and your domain name to help keep tags globally unique; for
-example, the string tag is really ``tag:yaml.org,2002:str``.  (I don't know why
-a year is in there, let alone the comma.)
+example, the string tag is really ``tag:yaml.org,2002:str``.  (Domain names can
+change hands over time, hence the inclusion of a year.)
 
 That's quite a mouthful, and wouldn't be recognized as a tag anyway, because
 tags have to start with ``!``.  So tags are written in shorthand with a prefix,
