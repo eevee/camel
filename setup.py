@@ -4,7 +4,7 @@ from io import open
 
 setup(
     name='camel',
-    version='0.1.1',
+    version='0.1.2',
     description="Python serialization for adults",
     long_description=open('README.txt', encoding='utf8').read(),
     url="https://github.com/eevee/camel",
