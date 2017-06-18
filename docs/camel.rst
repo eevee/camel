@@ -265,7 +265,7 @@ recognized::
             edge = data['size'] ** 0.5
             return Table(edge, edge)
         else:
-            # version 2?)
+            # version 2?
             return Table(data['height'], data['width'])
 
 Versions must still be integers; a non-integer version will cause an immediate
@@ -319,7 +319,7 @@ YAML tag            Python type
 ``!!null``          :py:class:`NoneType`
 ``!!omap``          :py:class:`collections.OrderedDict`
 ``!!seq``           :py:class:`list` or :py:class:`tuple` (dump only)
-``!!set``           :py:class:`set`
+``!!set``           :py:class:`set` or :py:class:`frozenset` (dump only)
 ``!!str``           :py:class:`str` (:py:class:`unicode` on Python 2)
 ``!!timestamp``     :py:class:`datetime.date` or :py:class:`datetime.datetime` as appropriate
 ===============     ========================================
@@ -329,6 +329,16 @@ YAML tag            Python type
    base64-encoded ``!!binary`` representation.
 
    This is a **feature**.
+
+.. note:: A dumper function must return a value that can be expressed in YAML
+   without a tag — that is, any of the above Python types *except*
+   :py:class:`bytes`, :py:class:`set`/:py:class:`frozenset`, and
+   :py:class:`datetime.date`/:py:class:`datetime.datetime`.  (Of course, if the
+   value is a container, its contents can be anything and will be serialized
+   recursively.)
+
+   If a dumper returns a :py:class:`collections.OrderedDict`, it will be
+   serialized like a plain dict, but the order of its keys will be preserved.
 
 The following additional types are loaded by default, but **not dumped**.  If
 you want to dump these types, you can use the existing ``camel.PYTHON_TYPES``

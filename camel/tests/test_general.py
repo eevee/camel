@@ -86,6 +86,7 @@ class DieRoll(tuple):
         return "DieRoll(%s,%s)" % self
 
 
+# Dump/load as a compact string
 reg = CamelRegistry()
 
 
@@ -106,4 +107,37 @@ def test_dieroll():
     camel = Camel([reg])
     dumped = camel.dump(value)
     assert dumped == '!roll 3d6\n...\n'
+    assert camel.load(dumped) == value
+
+
+# Dump/load as a dict
+reg2 = CamelRegistry()
+
+
+@reg2.dumper(DieRoll, 'roll', version=None)
+def dump_dice(data):
+    return collections.OrderedDict([
+        # NOTE: These are deliberately arranged in reverse alphabetical order,
+        # to ensure that we avoid pyyaml's default behavior of sorting a
+        # dict-like when dumping a mapping
+        ('numdice', data[0]),
+        ('faces', data[1]),
+    ])
+
+
+@reg2.loader('roll', version=None)
+def load_dice(data, version):
+    # TODO enforce data is a dict?
+    # TODO enforce data contains only these keys?
+    return DieRoll(
+        int(data['numdice']),
+        int(data['faces']),
+    )
+
+
+def test_dieroll2():
+    value = DieRoll(3, 6)
+    camel = Camel([reg2])
+    dumped = camel.dump(value)
+    assert dumped == '!roll\nnumdice: 3\nfaces: 6\n'
     assert camel.load(dumped) == value

@@ -203,8 +203,15 @@ class CamelRegistry(object):
         canon_type = type(canon_value)
         # TODO this gives no control over flow_style, style, and implicit.  do
         # we intend to figure it out ourselves?
-        if canon_type in (dict, collections.OrderedDict):
+        if canon_type is dict:
             return dumper.represent_mapping(tag, canon_value, flow_style=False)
+        elif canon_type is collections.OrderedDict:
+            # pyyaml tries to sort the items of a dict, which defeats the point
+            # of returning an OrderedDict.  Luckily, it only does this if the
+            # value it gets has an 'items' method; otherwise it skips the
+            # sorting and iterates the value directly, assuming it'll get
+            # key/value pairs.  So pass in the dict's items iterator.
+            return dumper.represent_mapping(tag, canon_value.items(), flow_style=False)
         elif canon_type in (tuple, list):
             return dumper.represent_sequence(tag, canon_value, flow_style=False)
         elif canon_type in (int, _long, float, bool, _str, type(None)):
