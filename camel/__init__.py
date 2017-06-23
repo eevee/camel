@@ -1,10 +1,19 @@
 # encoding: utf8
 # TODO
+# i kinda need for pokedex purposes:
+# - consider creating an @inherited_dumper?  would need a way to pattern-match on the tag or something though, yikes.  can this be done in a more controlled way, like you only get to pick a suffix to add to the tag?  or is it useful in some other way to be able to pattern match on tags?
+# - easy way to explicitly set the representer style (maybe a decorator arg?)
+# - document tag_prefix!  or was i thinking about the design of it?  should you be able to override the tag prefix when adding to the camel?
+#   - tag_prefix=YAML_TAG_PREFIX is different from passing it as the actual tag name and i don't get why -- maybe because the default tag prefix is !
+# - test and document inherit arg to @dumper
+# - comment, test, document add_registry and tag_shorthand
+#
+# - expose the plain scalar parser things
+#
 # - support %TAG directives some nice reasonable way
 # - support the attrs module, if installed, somehow
 # - consider using (optionally?) ruamel.yaml, which roundtrips comments, merges, anchors, ...
 # - DWIM formatting: block style except for very short sequences (if at all?), quotey style for long text...
-# - expose multi representers and plain scalar parser things
 # - make dumper/loader work on methods?  ehh
 # - "raw" loaders and dumpers that get to deal with raw yaml nodes?
 
@@ -95,15 +104,37 @@ class CamelLoader(SafeLoader):
 
 
 class Camel(object):
+    """Class responsible for doing the actual dumping to and loading from YAML.
+    """
     def __init__(self, registries=()):
-        self.registries = (STANDARD_TYPES,) + tuple(registries)
+        self.registries = collections.OrderedDict()
         self.version_locks = {}  # class => version
+
+        self.add_registry(STANDARD_TYPES)
+        for registry in registries:
+            self.add_registry(registry)
+
+    def add_registry(self, registry, tag_prefix=None, tag_shorthand=None):
+        self.registries[registry] = (
+            tag_prefix or registry.tag_prefix,
+            tag_shorthand or registry.tag_shorthand,
+        )
 
     def lock_version(self, cls, version):
         self.version_locks[cls] = version
 
     def make_dumper(self, stream):
-        dumper = CamelDumper(stream, default_flow_style=False)
+        tag_shorthands = {}
+        for registry, (prefix, shorthand) in self.registries.items():
+            if shorthand is None:
+                continue
+            if shorthand in tag_shorthands:
+                raise ValueError(
+                    "Conflicting tag shorthands: {!r} is short for both {!r} and {!r}"
+                    .format(shorthand, tag_shorthands[shorthand], prefix))
+            tag_shorthands[shorthand] = prefix
+
+        dumper = CamelDumper(stream, default_flow_style=False, tags=tag_shorthands)
         for registry in self.registries:
             registry.inject_dumpers(dumper, version_locks=self.version_locks)
         return dumper
@@ -149,11 +180,13 @@ class DuplicateVersion(ValueError):
 class CamelRegistry(object):
     frozen = False
 
-    def __init__(self, tag_prefix='!'):
+    def __init__(self, tag_prefix='!', tag_shorthand=None):
         self.tag_prefix = tag_prefix
+        self.tag_shorthand = tag_shorthand
 
         # type => {version => function)
         self.dumpers = collections.defaultdict(dict)
+        self.multi_dumpers = collections.defaultdict(dict)
         # base tag => {version => function}
         self.loaders = collections.defaultdict(dict)
 
@@ -171,10 +204,15 @@ class CamelRegistry(object):
             raise ValueError(
                 "Tags may not contain semicolons: {0!r}".format(tag))
 
-    def dumper(self, cls, tag, version):
+    def dumper(self, cls, tag, version, inherit=False):
         self._check_tag(tag)
 
-        if version in self.dumpers[cls]:
+        if inherit:
+            store_in = self.multi_dumpers
+        else:
+            store_in = self.dumpers
+
+        if version in store_in[cls]:
             raise DuplicateVersion
 
         tag = self.tag_prefix + tag
@@ -189,7 +227,7 @@ class CamelRegistry(object):
                 "got {0!r} instead".format(version))
 
         def decorator(f):
-            self.dumpers[cls][version] = functools.partial(
+            store_in[cls][version] = functools.partial(
                 self.run_representer, f, full_tag)
             return f
 
@@ -226,20 +264,24 @@ class CamelRegistry(object):
         if not version_locks:
             version_locks = {}
 
-        for cls, versions in self.dumpers.items():
-            version = version_locks.get(cls, max)
-            if versions and version is max:
-                if None in versions:
-                    representer = versions[None]
+        for add_method, dumpers in [
+                (dumper.add_representer, self.dumpers),
+                (dumper.add_multi_representer, self.multi_dumpers),
+            ]:
+            for cls, versions in dumpers.items():
+                version = version_locks.get(cls, max)
+                if versions and version is max:
+                    if None in versions:
+                        representer = versions[None]
+                    else:
+                        representer = versions[max(versions)]
+                elif version in versions:
+                    representer = versions[version]
                 else:
-                    representer = versions[max(versions)]
-            elif version in versions:
-                representer = versions[version]
-            else:
-                raise KeyError(
-                    "Don't know how to dump version {0!r} of type {1!r}"
-                    .format(version, cls))
-            dumper.add_representer(cls, representer)
+                    raise KeyError(
+                        "Don't know how to dump version {0!r} of type {1!r}"
+                        .format(version, cls))
+                add_method(cls, representer)
 
     # Loading
     # TODO implement "upgrader", which upgrades from one version to another
